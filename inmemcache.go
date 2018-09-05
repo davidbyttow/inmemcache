@@ -53,7 +53,7 @@ type Client struct {
 // Add according to bradfitz/gomemcache/memcache
 func (c *Client) Add(item *memcache.Item) error {
 	if _, ok := c.get(item.Key); !ok {
-		return c.Set(item)
+		return c.Set(copy(item))
 	}
 	return memcache.ErrNotStored
 }
@@ -96,7 +96,7 @@ func (c *Client) FlushAll() error {
 // Get according to bradfitz/gomemcache/memcache
 func (c *Client) Get(key string) (item *memcache.Item, err error) {
 	if item, found := c.get(key); found {
-		return item, nil
+		return copy(item), nil
 	}
 	return nil, memcache.ErrCacheMiss
 }
@@ -106,10 +106,10 @@ func (c *Client) GetMulti(keys []string) (map[string]*memcache.Item, error) {
 	m := make(map[string]*memcache.Item)
 	for _, key := range keys {
 		if item, found := c.get(key); found {
-			m[item.Key] = item
+			m[item.Key] = copy(item)
 		}
 	}
-	return nil, nil
+	return m, nil
 }
 
 // Increment according to bradfitz/gomemcache/memcache
@@ -121,14 +121,14 @@ func (c *Client) Increment(key string, delta uint64) (newValue uint64, err error
 // Replace according to bradfitz/gomemcache/memcache
 func (c *Client) Replace(item *memcache.Item) error {
 	if _, ok := c.get(item.Key); ok {
-		return c.Set(item)
+		return c.Set(copy(item))
 	}
 	return memcache.ErrNotStored
 }
 
 // Set according to bradfitz/gomemcache/memcache
 func (c *Client) Set(item *memcache.Item) error {
-	c.cache.Set(item.Key, item, toDuration(item.Expiration))
+	c.cache.Set(item.Key, copy(item), toDuration(item.Expiration))
 	return nil
 }
 
@@ -149,6 +149,11 @@ func (c *Client) get(key string) (item *memcache.Item, ok bool) {
 }
 
 const secondsPerMonth = 60 * 60 * 24 * 30
+
+func copy(item *memcache.Item) *memcache.Item {
+	other := *item
+	return &other
+}
 
 func toDuration(s int32) time.Duration {
 	if s <= secondsPerMonth {
